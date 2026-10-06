@@ -377,10 +377,19 @@ function selectEdge({ event, edge }: EdgeMouseEvent) {
   actionMenu.value = null
 }
 
-function clearSelection() {
-  selectedNodeId.value = null
+function closeConnectorPopover() {
+  if (selectedEdgeId.value) {
+    edges.value = edges.value.map((edge) => edge.id === selectedEdgeId.value
+      ? { ...edge, selected: false }
+      : edge)
+  }
   selectedEdgeId.value = null
   connectorPopover.value = null
+}
+
+function clearSelection() {
+  selectedNodeId.value = null
+  closeConnectorPopover()
   actionMenu.value = null
 }
 
@@ -605,9 +614,14 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-function closeActionMenu(event: PointerEvent) {
-  if (!(event.target instanceof Node) || !actionMenuElement.value?.contains(event.target)) {
+function closeFloatingMenus(event: PointerEvent) {
+  if (!(event.target instanceof Element)) return
+
+  if (!actionMenuElement.value?.contains(event.target)) {
     actionMenu.value = null
+  }
+  if (connectorPopover.value && !event.target.closest('.connector-popover')) {
+    closeConnectorPopover()
   }
 }
 
@@ -615,12 +629,10 @@ watch([nodes, edges], scheduleSave, { deep: true })
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
-  window.addEventListener('pointerdown', closeActionMenu)
   window.addEventListener('beforeunload', saveDiagram)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
-  window.removeEventListener('pointerdown', closeActionMenu)
   window.removeEventListener('beforeunload', saveDiagram)
   clearTimeout(messageTimeout)
   saveDiagram()
@@ -628,7 +640,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="app-shell">
+  <main class="app-shell" @pointerdown.capture="closeFloatingMenus">
     <header class="topbar">
       <div class="brand">
         <span class="brand__mark"><Network :size="20" :stroke-width="2" /></span>
@@ -797,17 +809,21 @@ onBeforeUnmount(() => {
           <span>{{ blockCount }} blocks</span><span>{{ annotationCount }} annotations</span><span>{{ edges.length }} connections</span>
         </div>
 
-        <Transition name="connector-popover">
-          <ConnectorInspector
-            v-if="selectedEdge && connectorPopover"
-            :line-style="selectedConnectorStyle"
-            :class="`connector-popover--${connectorPopover.placement}`"
-            :style="{ left: `${connectorPopover.x}px`, top: `${connectorPopover.y}px` }"
-            @update="updateSelectedEdge"
-            @close="clearSelection"
-            @remove="removeSelectedEdge"
-          />
-        </Transition>
+        <div
+          v-if="selectedEdge && connectorPopover"
+          class="connector-popover-dismiss"
+          aria-hidden="true"
+          @pointerdown.stop="clearSelection"
+        />
+        <ConnectorInspector
+          v-if="selectedEdge && connectorPopover"
+          :line-style="selectedConnectorStyle"
+          :class="`connector-popover--${connectorPopover.placement}`"
+          :style="{ left: `${connectorPopover.x}px`, top: `${connectorPopover.y}px` }"
+          @update="updateSelectedEdge"
+          @close="clearSelection"
+          @remove="removeSelectedEdge"
+        />
       </div>
 
       <Transition name="file-message">

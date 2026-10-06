@@ -21,7 +21,7 @@ const styles: { value: ConnectorStyle; label: string }[] = [
 </script>
 
 <template>
-  <div class="connector-popover" role="dialog" aria-label="Connection style" @click.stop>
+  <div class="connector-popover" role="dialog" aria-label="Connection style" @pointerdown.stop @click.stop>
     <div class="connector-popover__header">
       <strong>Arrow style</strong>
       <div>
