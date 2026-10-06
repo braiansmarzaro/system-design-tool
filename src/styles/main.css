@@ -125,6 +125,9 @@ button:active:not(:disabled) { scale: 0.96; }
 .vue-flow__connection-path { stroke: #3267d6; stroke-width: 2; }
 .vue-flow__arrowhead { fill: #7a8880; }
 .diagram-canvas .vue-flow__pane.selection { cursor: default; }
+.diagram-canvas .vue-flow__pane.selection.dragging { cursor: grabbing; }
+.canvas-wrap--select .vue-flow__node.draggable, .canvas-wrap--select .system-block, .canvas-wrap--select .annotation-node { cursor: pointer; }
+.canvas-wrap--select .vue-flow__node.draggable.dragging, .canvas-wrap--select .vue-flow__node.draggable.dragging .system-block, .canvas-wrap--select .vue-flow__node.draggable.dragging .annotation-node { cursor: grabbing; }
 .diagram-minimap { right: 16px !important; bottom: 16px !important; width: 132px !important; height: 82px !important; overflow: hidden; background: rgb(255 255 255 / 88%) !important; border: 1px solid #dce2dc; border-radius: 6px; box-shadow: 0 5px 18px rgb(28 40 33 / 8%); }
 .drop-preview { position: absolute; z-index: 20; display: grid; grid-template-columns: 5px minmax(0, 1fr); width: 248px; min-height: 82px; gap: 13px; padding: 13px; translate: -50% -50%; color: var(--ink); background: rgb(255 255 255 / 88%); border: 1px solid #aeb9b1; border-radius: 8px; box-shadow: 0 16px 34px rgb(28 40 33 / 16%); backdrop-filter: blur(8px); pointer-events: none; animation: drop-preview-in 140ms var(--ease-out) both; }
 .drop-preview__accent { width: 5px; height: 42px; border-radius: 3px; }

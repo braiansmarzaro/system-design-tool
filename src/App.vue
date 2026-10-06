@@ -47,7 +47,7 @@ import {
   type SystemBlockData,
 } from '@/domain/diagram'
 import { createDiagramFile, createDiagramSvg, downloadTextFile } from '@/domain/diagramExport'
-import { loadStoredDiagram, storeDiagram } from '@/domain/diagramStorage'
+import { loadStoredDiagram, loadStoredViewport, storeDiagram, storeViewport } from '@/domain/diagramStorage'
 
 type DiagramNodeData = SystemBlockData | AnnotationData
 type DiagramNode = FlowNode<DiagramNodeData> & { data: DiagramNodeData }
@@ -93,6 +93,7 @@ const initialEdges: Edge[] = [
 ]
 
 const storedDiagram = loadStoredDiagram()
+const storedViewport = loadStoredViewport()
 const nodes = shallowRef<DiagramNode[]>(storedDiagram
   ? storedDiagram.nodes.map((node) => ({
       ...node,
@@ -131,7 +132,7 @@ const fileMessage = ref<{ text: string; error: boolean } | null>(null)
 const saveState = ref<'saved' | 'saving' | 'error'>('saved')
 let messageTimeout: ReturnType<typeof setTimeout> | undefined
 let saveTimeout: ReturnType<typeof setTimeout> | undefined
-const { viewport, screenToFlowCoordinate, zoomIn, zoomOut, fitView } = useVueFlow()
+const { viewport, getSelectedNodes, getSelectedEdges, screenToFlowCoordinate, zoomIn, zoomOut, fitView } = useVueFlow()
 
 const selectedNode = computed(() => nodes.value.find((node) => node.id === selectedNodeId.value))
 const selectedBlock = computed<SystemDiagramNode | undefined>(() => {
@@ -484,6 +485,27 @@ function removeSelectedEdge() {
   selectedEdgeId.value = null
 }
 
+function removeSelectedItems() {
+  const nodeIds = new Set(getSelectedNodes.value.map((node) => node.id))
+  const edgeIds = new Set(getSelectedEdges.value.map((edge) => edge.id))
+
+  if (!nodeIds.size && !edgeIds.size) {
+    if (selectedNodeId.value) nodeIds.add(selectedNodeId.value)
+    if (selectedEdgeId.value) edgeIds.add(selectedEdgeId.value)
+  }
+  if (!nodeIds.size && !edgeIds.size) return false
+
+  nodes.value = nodes.value.filter((node) => !nodeIds.has(node.id))
+  edges.value = edges.value.filter((edge) => !edgeIds.has(edge.id)
+    && !nodeIds.has(edge.source)
+    && !nodeIds.has(edge.target))
+  selectedNodeId.value = null
+  selectedEdgeId.value = null
+  connectorPopover.value = null
+  actionMenu.value = null
+  return true
+}
+
 function duplicateSelectedNode() {
   const node = selectedNode.value
   if (!node) return
@@ -530,6 +552,15 @@ function scheduleSave() {
   clearTimeout(saveTimeout)
   saveState.value = 'saving'
   saveTimeout = setTimeout(saveDiagram, 300)
+}
+
+function saveViewport(nextViewport = viewport.value) {
+  storeViewport({ x: nextViewport.x, y: nextViewport.y, zoom: nextViewport.zoom })
+}
+
+function saveWorkspace() {
+  saveDiagram()
+  saveViewport()
 }
 
 function closeExportMenu() {
@@ -604,14 +635,7 @@ function handleKeydown(event: KeyboardEvent) {
     return
   }
   if (event.key !== 'Delete' && event.key !== 'Backspace') return
-
-  if (selectedEdgeId.value) {
-    event.preventDefault()
-    removeSelectedEdge()
-  } else if (selectedNodeId.value) {
-    event.preventDefault()
-    removeSelectedNode()
-  }
+  if (removeSelectedItems()) event.preventDefault()
 }
 
 function closeFloatingMenus(event: PointerEvent) {
@@ -629,13 +653,13 @@ watch([nodes, edges], scheduleSave, { deep: true })
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
-  window.addEventListener('beforeunload', saveDiagram)
+  window.addEventListener('beforeunload', saveWorkspace)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
-  window.removeEventListener('beforeunload', saveDiagram)
+  window.removeEventListener('beforeunload', saveWorkspace)
   clearTimeout(messageTimeout)
-  saveDiagram()
+  saveWorkspace()
 })
 </script>
 
@@ -687,7 +711,10 @@ onBeforeUnmount(() => {
       <div
         ref="canvasWrap"
         class="canvas-wrap"
-        :class="{ 'canvas-wrap--drawing': activeAnnotationTool === 'rectangle' }"
+        :class="{
+          'canvas-wrap--drawing': activeAnnotationTool === 'rectangle',
+          'canvas-wrap--select': interactionMode === 'select' && !activeAnnotationTool,
+        }"
         @dragover.prevent="updateDragPreview"
         @dragleave.self="dropPreview = null"
         @drop="handleDrop"
@@ -703,13 +730,14 @@ onBeforeUnmount(() => {
           v-model:nodes="nodes"
           v-model:edges="edges"
           class="diagram-canvas"
-          :default-viewport="{ x: 20, y: 60, zoom: 1 }"
+          :default-viewport="storedViewport ?? { x: 20, y: 60, zoom: 1 }"
           :min-zoom="0.35"
           :max-zoom="1.8"
           :connection-mode="ConnectionMode.Loose"
+          :delete-key-code="['Delete', 'Backspace']"
           :snap-to-grid="true"
           :snap-grid="[16, 16]"
-          :pan-on-drag="interactionMode === 'pan' && !activeAnnotationTool"
+          :pan-on-drag="interactionMode === 'pan' ? [0, 1] : [1]"
           :selection-key-code="interactionMode === 'select'"
           :zoom-on-double-click="false"
           @connect="handleConnect"
@@ -720,6 +748,7 @@ onBeforeUnmount(() => {
           @edge-click="selectEdge"
           @pane-click="clearSelection"
           @pane-context-menu="openCanvasMenu"
+          @viewport-change-end="saveViewport"
         >
           <Background pattern-color="#c8cec8" :gap="24" :size="1" />
           <template #node-systemBlock="nodeProps">
