@@ -1,0 +1,47 @@
+import type { Component } from 'vue'
+import {
+  Archive,
+  Boxes,
+  Cloud,
+  Container,
+  Database,
+  DatabaseZap,
+  Gauge,
+  Globe2,
+  MessagesSquare,
+  Plug,
+  Server,
+  Table2,
+  User,
+  Waypoints,
+  Zap,
+} from 'lucide-vue-next'
+
+import type { BlockKind } from '@/domain/diagram'
+
+export const blockIcons = {
+  cdn: Globe2,
+  'load-balancer': Gauge,
+  database: Database,
+  nosql: DatabaseZap,
+  compute: Server,
+  'serverless-function': Zap,
+  'object-storage': Archive,
+  'api-gateway': Waypoints,
+  container: Container,
+  'message-queue': MessagesSquare,
+  cache: Boxes,
+  user: User,
+  'external-service': Plug,
+  'external-api': Waypoints,
+  'aws-lambda': Zap,
+  'aws-ec2': Server,
+  'aws-s3': Archive,
+  'aws-api-gateway': Waypoints,
+  'aws-ecs': Container,
+  'aws-rds': Database,
+  'aws-dynamodb': Table2,
+  'aws-sqs': MessagesSquare,
+  'aws-cloudfront': Cloud,
+  'aws-elasticache': Boxes,
+} satisfies Record<BlockKind, Component>
