@@ -12,6 +12,18 @@ export type BlockKind =
   | 'worker'
   | 'scheduler'
   | 'cache'
+  | 'event-bus'
+  | 'pub-sub'
+  | 'stream-processing'
+  | 'workflow-orchestrator'
+  | 'identity-provider'
+  | 'dns'
+  | 'web-application-firewall'
+  | 'observability'
+  | 'secrets-manager'
+  | 'search-engine'
+  | 'kubernetes'
+  | 'data-warehouse'
   | 'user'
   | 'external-service'
   | 'external-api'
@@ -26,10 +38,22 @@ export type BlockKind =
   | 'aws-eventbridge-scheduler'
   | 'aws-cloudfront'
   | 'aws-elasticache'
+  | 'aws-eventbridge'
+  | 'aws-sns'
+  | 'aws-kinesis'
+  | 'aws-step-functions'
+  | 'aws-cognito'
+  | 'aws-route-53'
+  | 'aws-waf'
+  | 'aws-cloudwatch'
+  | 'aws-secrets-manager'
+  | 'aws-opensearch'
+  | 'aws-eks'
+  | 'aws-redshift'
 
 export type BlockCategory = 'Core' | 'External' | 'AWS'
 
-export type BlockStatus = 'healthy' | 'warning'
+export type BlockStatus = 'healthy' | 'warning' | 'unavailable'
 
 export type AnnotationKind = 'text' | 'rectangle' | 'arrow'
 
@@ -108,12 +132,17 @@ export interface DiagramFile {
 const blockKinds: BlockKind[] = [
   'cdn', 'load-balancer', 'database', 'nosql', 'compute', 'serverless-function',
   'object-storage', 'api-gateway', 'container', 'message-queue', 'worker', 'scheduler',
-  'cache', 'user',
+  'cache', 'event-bus', 'pub-sub', 'stream-processing', 'workflow-orchestrator',
+  'identity-provider', 'dns', 'web-application-firewall', 'observability',
+  'secrets-manager', 'search-engine', 'kubernetes', 'data-warehouse', 'user',
   'external-service', 'external-api', 'aws-lambda', 'aws-ec2', 'aws-s3',
   'aws-api-gateway', 'aws-ecs', 'aws-rds', 'aws-dynamodb', 'aws-sqs',
-  'aws-eventbridge-scheduler', 'aws-cloudfront', 'aws-elasticache',
+  'aws-eventbridge-scheduler', 'aws-cloudfront', 'aws-elasticache', 'aws-eventbridge',
+  'aws-sns', 'aws-kinesis', 'aws-step-functions', 'aws-cognito', 'aws-route-53',
+  'aws-waf', 'aws-cloudwatch', 'aws-secrets-manager', 'aws-opensearch', 'aws-eks',
+  'aws-redshift',
 ]
-const blockStatuses: BlockStatus[] = ['healthy', 'warning']
+const blockStatuses: BlockStatus[] = ['healthy', 'warning', 'unavailable']
 const legacyBlockAliases: Partial<Record<BlockKind, { kind: BlockKind; provider: string }>> = {
   'aws-lambda': { kind: 'serverless-function', provider: 'AWS Lambda' },
   'aws-ec2': { kind: 'compute', provider: 'Amazon EC2' },
@@ -126,6 +155,18 @@ const legacyBlockAliases: Partial<Record<BlockKind, { kind: BlockKind; provider:
   'aws-eventbridge-scheduler': { kind: 'scheduler', provider: 'Amazon EventBridge Scheduler' },
   'aws-cloudfront': { kind: 'cdn', provider: 'Amazon CloudFront' },
   'aws-elasticache': { kind: 'cache', provider: 'Amazon ElastiCache' },
+  'aws-eventbridge': { kind: 'event-bus', provider: 'Amazon EventBridge' },
+  'aws-sns': { kind: 'pub-sub', provider: 'Amazon SNS' },
+  'aws-kinesis': { kind: 'stream-processing', provider: 'Amazon Kinesis Data Streams' },
+  'aws-step-functions': { kind: 'workflow-orchestrator', provider: 'AWS Step Functions' },
+  'aws-cognito': { kind: 'identity-provider', provider: 'Amazon Cognito' },
+  'aws-route-53': { kind: 'dns', provider: 'Amazon Route 53' },
+  'aws-waf': { kind: 'web-application-firewall', provider: 'AWS WAF' },
+  'aws-cloudwatch': { kind: 'observability', provider: 'Amazon CloudWatch' },
+  'aws-secrets-manager': { kind: 'secrets-manager', provider: 'AWS Secrets Manager' },
+  'aws-opensearch': { kind: 'search-engine', provider: 'Amazon OpenSearch Service' },
+  'aws-eks': { kind: 'kubernetes', provider: 'Amazon EKS' },
+  'aws-redshift': { kind: 'data-warehouse', provider: 'Amazon Redshift' },
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

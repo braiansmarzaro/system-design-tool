@@ -68,7 +68,12 @@ function blockSvg(node: DiagramFileNode, offsetX: number, offsetY: number): stri
   const y = node.position.y - offsetY
   const { data } = node
   if (isAnnotation(data)) return annotationSvg(data, x, y)
-  const statusColor = data.status === 'healthy' ? '#31a67d' : '#d6932e'
+  const statusColors = {
+    healthy: '#31a67d',
+    warning: '#e3ad17',
+    unavailable: '#d64b3c',
+  } satisfies Record<typeof data.status, string>
+  const statusColor = statusColors[data.status]
   const label = escapeXml(ellipsize(data.label, 20))
   const description = escapeXml(ellipsize(data.description, 29))
   const providerWidth = data.provider ? Math.min(76, Math.max(42, data.provider.length * 6 + 14)) : 0
