@@ -9,6 +9,8 @@ defineProps<{
 
 const emit = defineEmits<{
   update: [patch: Partial<AnnotationData>]
+  editStart: []
+  editEnd: []
   close: []
   duplicate: []
   remove: []
@@ -33,7 +35,12 @@ function updateNumber(field: 'fontSize' | 'radius', event: Event) {
 </script>
 
 <template>
-  <aside class="inspector" aria-label="Annotation inspector">
+  <aside
+    class="inspector"
+    aria-label="Annotation inspector"
+    @focusin="emit('editStart')"
+    @focusout="emit('editEnd')"
+  >
     <div class="panel-heading inspector__heading">
       <div>
         <span class="eyebrow">Selected annotation</span>

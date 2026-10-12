@@ -7,6 +7,8 @@ defineProps<{
   zoom: number
   mode: 'select' | 'pan'
   activeAnnotationTool: AnnotationKind | null
+  canUndo: boolean
+  canRedo: boolean
 }>()
 
 const emit = defineEmits<{
@@ -15,6 +17,8 @@ const emit = defineEmits<{
   zoomOut: []
   fitView: []
   addAnnotation: [kind: AnnotationKind]
+  undo: []
+  redo: []
 }>()
 </script>
 
@@ -70,10 +74,10 @@ const emit = defineEmits<{
     <span class="toolbar-divider" />
 
     <div class="toolbar-group toolbar-group--history" aria-label="History">
-      <button type="button" class="icon-button" aria-label="Undo" title="Undo" disabled>
+      <button type="button" class="icon-button" aria-label="Undo" title="Undo (Ctrl+Z)" :disabled="!canUndo" @click="emit('undo')">
         <Undo2 :size="17" />
       </button>
-      <button type="button" class="icon-button" aria-label="Redo" title="Redo" disabled>
+      <button type="button" class="icon-button" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" :disabled="!canRedo" @click="emit('redo')">
         <Redo2 :size="17" />
       </button>
     </div>

@@ -10,6 +10,9 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  editStart: []
+  editEnd: []
+  resizeStart: []
   resizeEnd: [size: { width: number; height: number }]
   update: [patch: Partial<AnnotationData>]
 }>()
@@ -25,6 +28,7 @@ function recordSize(event: { params: { width: number; height: number } }) {
 
 async function startEditing() {
   if (props.data.kind !== 'rectangle') return
+  emit('editStart')
   editing.value = true
   await nextTick()
   editor.value?.focus()
@@ -37,6 +41,7 @@ function updateText(event: Event) {
 
 function finishEditing() {
   editing.value = false
+  emit('editEnd')
 }
 </script>
 
@@ -56,6 +61,7 @@ function finishEditing() {
       :min-width="data.kind === 'text' ? 80 : 100"
       :min-height="data.kind === 'text' ? 36 : 64"
       color="#3267d6"
+      @resize-start="emit('resizeStart')"
       @resize-end="recordSize"
     />
 

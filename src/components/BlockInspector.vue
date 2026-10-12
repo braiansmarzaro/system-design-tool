@@ -14,6 +14,8 @@ const variants = computed(() => definition.value.variants ?? [])
 
 const emit = defineEmits<{
   update: [patch: Partial<SystemBlockData>]
+  editStart: []
+  editEnd: []
   close: []
   duplicate: []
   remove: []
@@ -45,10 +47,20 @@ function updateProvider(event: Event) {
     tint: variant.tint ?? definition.value.tint,
   })
 }
+
+function finishFieldEdit(event: KeyboardEvent) {
+  if (event.target instanceof HTMLElement) event.target.blur()
+}
 </script>
 
 <template>
-  <aside class="inspector" aria-label="Block inspector">
+  <aside
+    class="inspector"
+    aria-label="Block inspector"
+    @focusin="emit('editStart')"
+    @focusout="emit('editEnd')"
+    @keydown.enter="finishFieldEdit"
+  >
     <div class="panel-heading inspector__heading">
       <div>
         <span class="eyebrow">Selected block</span>
@@ -99,7 +111,7 @@ function updateProvider(event: Event) {
         <span>Status</span>
         <div class="segmented-control">
           <button
-            v-for="status in (['healthy', 'warning'] as BlockStatus[])"
+            v-for="status in (['healthy', 'warning', 'unavailable'] as BlockStatus[])"
             :key="status"
             type="button"
             :class="{ 'is-active': data.status === status }"

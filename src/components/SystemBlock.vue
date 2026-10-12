@@ -29,7 +29,10 @@ const icon = computed(() => blockIcons[props.data.kind])
       <div class="system-block__heading">
         <strong>{{ data.label }}</strong>
         <span class="system-block__status">
-          <span class="system-block__status-dot" />
+          <span
+            class="system-block__status-dot"
+            :class="`system-block__status-dot--${data.status}`"
+          />
           {{ data.status }}
         </span>
       </div>

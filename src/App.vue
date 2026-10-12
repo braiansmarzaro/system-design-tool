@@ -44,6 +44,7 @@ import {
   type AnnotationKind,
   type BlockKind,
   type ConnectorStyle,
+  type DiagramFile,
   type SystemBlockData,
 } from '@/domain/diagram'
 import { createDiagramFile, createDiagramSvg, downloadTextFile } from '@/domain/diagramExport'
@@ -130,8 +131,13 @@ const actionMenuElement = ref<HTMLElement | null>(null)
 const actionMenu = ref<CanvasMenu | null>(null)
 const fileMessage = ref<{ text: string; error: boolean } | null>(null)
 const saveState = ref<'saved' | 'saving' | 'error'>('saved')
+const undoStack = shallowRef<DiagramFile[]>([])
+const redoStack = shallowRef<DiagramFile[]>([])
+const canUndo = computed(() => undoStack.value.length > 0)
+const canRedo = computed(() => redoStack.value.length > 0)
 let messageTimeout: ReturnType<typeof setTimeout> | undefined
 let saveTimeout: ReturnType<typeof setTimeout> | undefined
+let pendingEdit: DiagramFile | null = null
 const { viewport, getSelectedNodes, getSelectedEdges, screenToFlowCoordinate, zoomIn, zoomOut, fitView } = useVueFlow()
 
 const selectedNode = computed(() => nodes.value.find((node) => node.id === selectedNodeId.value))
@@ -160,22 +166,84 @@ function withConnectorStyle(edge: Edge, lineStyle: ConnectorStyle): Edge {
   }
 }
 
+function applyDiagram(diagram: DiagramFile) {
+  nodes.value = diagram.nodes.map((node) => ({
+    ...node,
+    type: isAnnotation(node.data) ? 'annotation' : 'systemBlock',
+    ...(isAnnotation(node.data) ? { width: node.data.width, height: node.data.height } : {}),
+  }))
+  edges.value = diagram.edges.map((edge) => withConnectorStyle({
+    ...edge,
+    type: 'smoothstep',
+    markerEnd: MarkerType.ArrowClosed,
+  }, edge.lineStyle ?? (edge.animated ? 'animated' : 'solid')))
+  nodeSequence.value = nodes.value.length
+  clearSelection()
+}
+
+function diagramsMatch(left: DiagramFile, right: DiagramFile) {
+  return JSON.stringify({ nodes: left.nodes, edges: left.edges })
+    === JSON.stringify({ nodes: right.nodes, edges: right.edges })
+}
+
+function beginDiagramEdit() {
+  pendingEdit ??= structuredClone(currentDiagram())
+}
+
+function completeDiagramEdit() {
+  if (!pendingEdit) return
+  const before = pendingEdit
+  pendingEdit = null
+  if (diagramsMatch(before, currentDiagram())) return
+
+  undoStack.value = [...undoStack.value, before].slice(-100)
+  redoStack.value = []
+}
+
+function performDiagramEdit(edit: () => void) {
+  beginDiagramEdit()
+  edit()
+  completeDiagramEdit()
+}
+
+function undo() {
+  completeDiagramEdit()
+  const previous = undoStack.value.at(-1)
+  if (!previous) return
+
+  redoStack.value = [...redoStack.value, structuredClone(currentDiagram())]
+  undoStack.value = undoStack.value.slice(0, -1)
+  applyDiagram(previous)
+}
+
+function redo() {
+  completeDiagramEdit()
+  const next = redoStack.value.at(-1)
+  if (!next) return
+
+  undoStack.value = [...undoStack.value, structuredClone(currentDiagram())].slice(-100)
+  redoStack.value = redoStack.value.slice(0, -1)
+  applyDiagram(next)
+}
+
 function isBlockKind(value: string): value is BlockKind {
   return blockCatalog.some((block) => block.kind === value)
 }
 
 function addBlock(kind: BlockKind, position?: { x: number; y: number }) {
-  nodeSequence.value += 1
-  const offset = nodeSequence.value * 24
-  const id = `${kind}-${crypto.randomUUID()}`
+  performDiagramEdit(() => {
+    nodeSequence.value += 1
+    const offset = nodeSequence.value * 24
+    const id = `${kind}-${crypto.randomUUID()}`
 
-  nodes.value = [...nodes.value, {
-    id,
-    type: 'systemBlock',
-    position: position ?? { x: 320 + offset, y: 90 + offset },
-    data: createBlockData(kind),
-  }]
-  selectedNodeId.value = id
+    nodes.value = [...nodes.value, {
+      id,
+      type: 'systemBlock',
+      position: position ?? { x: 320 + offset, y: 90 + offset },
+      data: createBlockData(kind),
+    }]
+    selectedNodeId.value = id
+  })
 }
 
 function insertAnnotation(
@@ -205,19 +273,21 @@ function insertAnnotation(
     ...dimensions,
   }
 
-  nodes.value = [...nodes.value, {
-    id,
-    type: 'annotation',
-    position: position ?? {
-      x: center.x - dimensions.width / 2 + stagger,
-      y: center.y - dimensions.height / 2 + stagger,
-    },
-    width: dimensions.width,
-    height: dimensions.height,
-    data,
-  }]
-  selectedNodeId.value = id
-  selectedEdgeId.value = null
+  performDiagramEdit(() => {
+    nodes.value = [...nodes.value, {
+      id,
+      type: 'annotation',
+      position: position ?? {
+        x: center.x - dimensions.width / 2 + stagger,
+        y: center.y - dimensions.height / 2 + stagger,
+      },
+      width: dimensions.width,
+      height: dimensions.height,
+      data,
+    }]
+    selectedNodeId.value = id
+    selectedEdgeId.value = null
+  })
 }
 
 function addAnnotation(kind: AnnotationKind) {
@@ -302,14 +372,16 @@ const rectangleDraftStyle = computed(() => {
 function handleConnect(connection: Connection) {
   if (!connection.source || !connection.target) return
 
-  edges.value = [...edges.value, {
-    id: `${connection.source}-${connection.target}-${crypto.randomUUID()}`,
-    ...connection,
-    source: connection.source,
-    target: connection.target,
-    type: 'smoothstep',
-    markerEnd: MarkerType.ArrowClosed,
-  }]
+  performDiagramEdit(() => {
+    edges.value = [...edges.value, {
+      id: `${connection.source}-${connection.target}-${crypto.randomUUID()}`,
+      ...connection,
+      source: connection.source,
+      target: connection.target,
+      type: 'smoothstep',
+      markerEnd: MarkerType.ArrowClosed,
+    }]
+  })
 }
 
 function handleDrop(event: DragEvent) {
@@ -437,6 +509,7 @@ function removeNodeFromMenu() {
 
 function updateSelectedBlock(patch: Partial<SystemBlockData>) {
   if (!selectedNodeId.value) return
+  beginDiagramEdit()
   nodes.value = nodes.value.map((node) => node.id === selectedNodeId.value && !isAnnotation(node.data)
     ? { ...node, data: { ...node.data, ...patch } }
     : node)
@@ -448,6 +521,7 @@ function updateSelectedAnnotation(patch: Partial<AnnotationData>) {
 }
 
 function updateAnnotation(id: string, patch: Partial<AnnotationData>) {
+  beginDiagramEdit()
   nodes.value = nodes.value.map((node) => node.id === id && isAnnotation(node.data)
     ? {
         ...node,
@@ -462,27 +536,34 @@ function updateAnnotationSize(id: string, size: { width: number; height: number 
   nodes.value = nodes.value.map((node) => node.id === id && isAnnotation(node.data)
     ? { ...node, ...size, data: { ...node.data, ...size } }
     : node)
+  completeDiagramEdit()
 }
 
 function updateSelectedEdge(lineStyle: ConnectorStyle) {
   if (!selectedEdgeId.value) return
-  edges.value = edges.value.map((edge) => edge.id === selectedEdgeId.value
-    ? withConnectorStyle(edge, lineStyle)
-    : edge)
+  performDiagramEdit(() => {
+    edges.value = edges.value.map((edge) => edge.id === selectedEdgeId.value
+      ? withConnectorStyle(edge, lineStyle)
+      : edge)
+  })
 }
 
 function removeSelectedNode() {
   if (!selectedNodeId.value) return
-  const nodeId = selectedNodeId.value
-  nodes.value = nodes.value.filter((node) => node.id !== nodeId)
-  edges.value = edges.value.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
-  selectedNodeId.value = null
+  performDiagramEdit(() => {
+    const nodeId = selectedNodeId.value
+    nodes.value = nodes.value.filter((node) => node.id !== nodeId)
+    edges.value = edges.value.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+    selectedNodeId.value = null
+  })
 }
 
 function removeSelectedEdge() {
   if (!selectedEdgeId.value) return
-  edges.value = edges.value.filter((edge) => edge.id !== selectedEdgeId.value)
-  selectedEdgeId.value = null
+  performDiagramEdit(() => {
+    edges.value = edges.value.filter((edge) => edge.id !== selectedEdgeId.value)
+    selectedEdgeId.value = null
+  })
 }
 
 function removeSelectedItems() {
@@ -495,14 +576,16 @@ function removeSelectedItems() {
   }
   if (!nodeIds.size && !edgeIds.size) return false
 
-  nodes.value = nodes.value.filter((node) => !nodeIds.has(node.id))
-  edges.value = edges.value.filter((edge) => !edgeIds.has(edge.id)
-    && !nodeIds.has(edge.source)
-    && !nodeIds.has(edge.target))
-  selectedNodeId.value = null
-  selectedEdgeId.value = null
-  connectorPopover.value = null
-  actionMenu.value = null
+  performDiagramEdit(() => {
+    nodes.value = nodes.value.filter((node) => !nodeIds.has(node.id))
+    edges.value = edges.value.filter((edge) => !edgeIds.has(edge.id)
+      && !nodeIds.has(edge.source)
+      && !nodeIds.has(edge.target))
+    selectedNodeId.value = null
+    selectedEdgeId.value = null
+    connectorPopover.value = null
+    actionMenu.value = null
+  })
   return true
 }
 
@@ -513,15 +596,17 @@ function duplicateSelectedNode() {
   const id = isAnnotation(node.data)
     ? `annotation-${node.data.kind}-${crypto.randomUUID()}`
     : `${node.data.kind}-${crypto.randomUUID()}`
-  nodes.value = [...nodes.value, {
-    ...node,
-    id,
-    position: { x: node.position.x + 36, y: node.position.y + 36 },
-    data: isAnnotation(node.data)
-      ? { ...node.data }
-      : { ...node.data, label: `${node.data.label} copy` },
-  }]
-  selectedNodeId.value = id
+  performDiagramEdit(() => {
+    nodes.value = [...nodes.value, {
+      ...node,
+      id,
+      position: { x: node.position.x + 36, y: node.position.y + 36 },
+      data: isAnnotation(node.data)
+        ? { ...node.data }
+        : { ...node.data, label: `${node.data.label} copy` },
+    }]
+    selectedNodeId.value = id
+  })
 }
 
 function currentDiagram() {
@@ -598,19 +683,7 @@ async function importJson(event: Event) {
 
   try {
     const diagram = parseDiagramFile(JSON.parse(await file.text()))
-    nodes.value = diagram.nodes.map((node) => ({
-      ...node,
-      type: isAnnotation(node.data) ? 'annotation' : 'systemBlock',
-      ...(isAnnotation(node.data) ? { width: node.data.width, height: node.data.height } : {}),
-    }))
-    edges.value = diagram.edges.map((edge) => withConnectorStyle({
-        ...edge,
-        type: 'smoothstep',
-        markerEnd: MarkerType.ArrowClosed,
-      }, edge.lineStyle ?? (edge.animated ? 'animated' : 'solid')))
-    selectedNodeId.value = null
-    selectedEdgeId.value = null
-    nodeSequence.value = nodes.value.length
+    performDiagramEdit(() => applyDiagram(diagram))
     await nextTick()
     fitView({ padding: 0.22, duration: 280 })
     showFileMessage(`Imported ${nodes.value.length} blocks and ${edges.value.length} connections`)
@@ -626,6 +699,16 @@ function handleKeydown(event: KeyboardEvent) {
     actionMenu.value = null
     activeAnnotationTool.value = null
     rectangleDraft.value = null
+    return
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+    event.preventDefault()
+    event.shiftKey ? redo() : undo()
+    return
+  }
+  if (event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'y') {
+    event.preventDefault()
+    redo()
     return
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd' && selectedNodeId.value) {
@@ -734,7 +817,7 @@ onBeforeUnmount(() => {
           :min-zoom="0.35"
           :max-zoom="1.8"
           :connection-mode="ConnectionMode.Loose"
-          :delete-key-code="['Delete', 'Backspace']"
+          :delete-key-code="null"
           :snap-to-grid="true"
           :snap-grid="[16, 16]"
           :pan-on-drag="interactionMode === 'pan' ? [0, 1] : [1]"
@@ -744,7 +827,8 @@ onBeforeUnmount(() => {
           @node-click="selectNode"
           @node-double-click="openNodeMenu"
           @node-context-menu="openNodeMenu"
-          @node-drag-stop="saveDiagram"
+          @node-drag-start="beginDiagramEdit"
+          @node-drag-stop="completeDiagramEdit"
           @edge-click="selectEdge"
           @pane-click="clearSelection"
           @pane-context-menu="openCanvasMenu"
@@ -758,6 +842,9 @@ onBeforeUnmount(() => {
             <AnnotationNode
               v-bind="nodeProps"
               @pointerdown="selectNodeById(nodeProps.id)"
+              @edit-start="beginDiagramEdit"
+              @edit-end="completeDiagramEdit"
+              @resize-start="beginDiagramEdit"
               @resize-end="updateAnnotationSize(nodeProps.id, $event)"
               @update="updateAnnotation(nodeProps.id, $event)"
             />
@@ -827,11 +914,15 @@ onBeforeUnmount(() => {
           :zoom="viewport.zoom"
           :mode="interactionMode"
           :active-annotation-tool="activeAnnotationTool"
+          :can-undo="canUndo"
+          :can-redo="canRedo"
           @set-mode="interactionMode = $event"
           @add-annotation="addAnnotation"
           @zoom-in="zoomIn({ duration: 200 })"
           @zoom-out="zoomOut({ duration: 200 })"
           @fit-view="fitView({ padding: 0.22, duration: 280 })"
+          @undo="undo"
+          @redo="redo"
         />
 
         <div class="canvas-status" aria-live="polite">
@@ -871,6 +962,8 @@ onBeforeUnmount(() => {
           v-if="selectedBlock"
           :data="selectedBlock.data"
           @update="updateSelectedBlock"
+          @edit-start="beginDiagramEdit"
+          @edit-end="completeDiagramEdit"
           @close="clearSelection"
           @duplicate="duplicateSelectedNode"
           @remove="removeSelectedNode"
@@ -881,6 +974,8 @@ onBeforeUnmount(() => {
           v-if="selectedAnnotation"
           :data="selectedAnnotation.data"
           @update="updateSelectedAnnotation"
+          @edit-start="beginDiagramEdit"
+          @edit-end="completeDiagramEdit"
           @close="clearSelection"
           @duplicate="duplicateSelectedNode"
           @remove="removeSelectedNode"
