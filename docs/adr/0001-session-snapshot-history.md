@@ -1,0 +1,3 @@
+# Use session snapshot history
+
+Undo and redo store up to 100 immutable Diagram snapshots in browser memory, with one snapshot captured per completed Edit. This favors reliable reversal of compound changes over the complexity of command objects; only the current Diagram is persisted locally, and history is cleared on reload and excluded from native exports. A command-based model may replace snapshots only if representative Diagram measurements show unacceptable memory use.

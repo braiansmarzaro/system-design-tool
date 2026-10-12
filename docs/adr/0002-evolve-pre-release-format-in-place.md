@@ -1,0 +1,3 @@
+# Evolve the pre-release format in place
+
+While System Studio has no active users, the native Diagram format remains version 1 and may change without backward compatibility. Existing exports and locally stored Diagrams may become invalid as the model evolves; explicit schema versions and migrations will begin only when format stability becomes a product requirement. This temporarily favors development speed over the versioning guarantees described in the initial charter.
