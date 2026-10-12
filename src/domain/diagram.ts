@@ -9,6 +9,8 @@ export type BlockKind =
   | 'api-gateway'
   | 'container'
   | 'message-queue'
+  | 'worker'
+  | 'scheduler'
   | 'cache'
   | 'user'
   | 'external-service'
@@ -21,6 +23,7 @@ export type BlockKind =
   | 'aws-rds'
   | 'aws-dynamodb'
   | 'aws-sqs'
+  | 'aws-eventbridge-scheduler'
   | 'aws-cloudfront'
   | 'aws-elasticache'
 
@@ -104,10 +107,11 @@ export interface DiagramFile {
 
 const blockKinds: BlockKind[] = [
   'cdn', 'load-balancer', 'database', 'nosql', 'compute', 'serverless-function',
-  'object-storage', 'api-gateway', 'container', 'message-queue', 'cache', 'user',
+  'object-storage', 'api-gateway', 'container', 'message-queue', 'worker', 'scheduler',
+  'cache', 'user',
   'external-service', 'external-api', 'aws-lambda', 'aws-ec2', 'aws-s3',
-  'aws-api-gateway', 'aws-ecs', 'aws-rds', 'aws-dynamodb', 'aws-sqs', 'aws-cloudfront',
-  'aws-elasticache',
+  'aws-api-gateway', 'aws-ecs', 'aws-rds', 'aws-dynamodb', 'aws-sqs',
+  'aws-eventbridge-scheduler', 'aws-cloudfront', 'aws-elasticache',
 ]
 const blockStatuses: BlockStatus[] = ['healthy', 'warning']
 const legacyBlockAliases: Partial<Record<BlockKind, { kind: BlockKind; provider: string }>> = {
@@ -119,6 +123,7 @@ const legacyBlockAliases: Partial<Record<BlockKind, { kind: BlockKind; provider:
   'aws-rds': { kind: 'database', provider: 'Amazon RDS' },
   'aws-dynamodb': { kind: 'nosql', provider: 'DynamoDB' },
   'aws-sqs': { kind: 'message-queue', provider: 'Amazon SQS' },
+  'aws-eventbridge-scheduler': { kind: 'scheduler', provider: 'Amazon EventBridge Scheduler' },
   'aws-cloudfront': { kind: 'cdn', provider: 'Amazon CloudFront' },
   'aws-elasticache': { kind: 'cache', provider: 'Amazon ElastiCache' },
 }
